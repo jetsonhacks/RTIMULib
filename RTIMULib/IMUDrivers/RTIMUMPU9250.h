@@ -32,7 +32,7 @@
 
 //  Define this symbol to use cache mode
 
-#define MPU9250_CACHE_MODE
+//#define MPU9250_CACHE_MODE
 
 //  FIFO transfer size
 

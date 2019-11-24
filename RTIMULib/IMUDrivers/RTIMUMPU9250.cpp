@@ -188,7 +188,7 @@ bool RTIMUMPU9250::IMUInit()
     m_imuData.fusionQPoseValid = false;
     m_imuData.gyroValid = true;
     m_imuData.accelValid = true;
-    m_imuData.compassValid = true;
+    m_imuData.compassValid = false;
     m_imuData.pressureValid = false;
     m_imuData.temperatureValid = false;
     m_imuData.humidityValid = false;
@@ -585,18 +585,17 @@ bool RTIMUMPU9250::IMURead()
 
 #else
 
-    if (count > MPU9250_FIFO_CHUNK_SIZE * 40) {
-        // more than 40 samples behind - going too slowly so discard some samples but maintain timestamp correctly
-        while (count >= MPU9250_FIFO_CHUNK_SIZE * 10) {
-            if (!m_settings->HALRead(m_slaveAddr, MPU9250_FIFO_R_W, MPU9250_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
-                return false;
-            count -= MPU9250_FIFO_CHUNK_SIZE;
-            m_imuData.timestamp += m_sampleInterval;
-        }
+    while (count > MPU9250_FIFO_CHUNK_SIZE) {
+        if (!m_settings->HALRead(m_slaveAddr, MPU9250_FIFO_R_W, MPU9250_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
+            return false;
+        count -= MPU9250_FIFO_CHUNK_SIZE;
+        m_imuData.timestamp += m_sampleInterval;
     }
 
-    if (count < MPU9250_FIFO_CHUNK_SIZE)
+    if (count < MPU9250_FIFO_CHUNK_SIZE) {
+        m_settings->HALRead(m_slaveAddr, MPU9250_FIFO_R_W, count, fifoData, "Failed to read fifo data");
         return false;
+    }
 
     if (!m_settings->HALRead(m_slaveAddr, MPU9250_FIFO_R_W, MPU9250_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
         return false;
@@ -609,24 +608,6 @@ bool RTIMUMPU9250::IMURead()
     RTMath::convertToVector(fifoData, m_imuData.accel, m_accelScale, true);
     RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
     RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
-
-    //  sort out gyro axes
-
-    m_imuData.gyro.setX(m_imuData.gyro.x());
-    m_imuData.gyro.setY(-m_imuData.gyro.y());
-    m_imuData.gyro.setZ(-m_imuData.gyro.z());
-
-    //  sort out accel data;
-
-    m_imuData.accel.setX(-m_imuData.accel.x());
-
-    //  use the compass fuse data adjustments
-
-    m_imuData.compass.setX(m_imuData.compass.x() * m_compassAdjust[0]);
-    m_imuData.compass.setY(m_imuData.compass.y() * m_compassAdjust[1]);
-    m_imuData.compass.setZ(m_imuData.compass.z() * m_compassAdjust[2]);
-
-    //  sort out compass axes
 
     float temp;
 
